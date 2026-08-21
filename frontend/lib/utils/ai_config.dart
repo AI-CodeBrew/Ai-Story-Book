@@ -1,11 +1,10 @@
-
 import 'package:ai_storybook_frontend/utils/app_strings.dart';
 
 class AIConfig {
-  // Get model name from AppStrings (which is managed by RemoteConfigService)
   static String get modelName {
-    // Return the model from AppStrings if it's not empty, otherwise fallback
-    return AppStrings.gemini_model.isNotEmpty ? AppStrings.gemini_model : 'gemini-1.5-flash';
+    return AppStrings.gemini_model.isNotEmpty
+        ? AppStrings.gemini_model
+        : 'gemini-2.0-flash';
   }
   
   // Method to get current model name (useful for debugging)

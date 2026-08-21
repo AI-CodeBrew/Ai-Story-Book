@@ -1,9 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'utils/app_sizes.dart';
-import 'services/firebase_service.dart';
-// import 'package:google_fonts/google_fonts.dart';
-// import 'package:napkin/app/data/size_config.dart';
+import 'services/api_service.dart';
+
 
 class StarFeedbackWidget extends StatefulWidget {
   final double size;
@@ -159,11 +157,12 @@ class _StarFeedbackWidgetState extends State<StarFeedbackWidget> {
                      isStarred = true;
                    });
 
-                   // Submit feedback using Firebase service
-                   await FirebaseService.submitFeedback(
-                     reason: finalFeedback,
-                     type: feedbackType!,
-                     reportedAt: DateTime.now(),
+                   await ApiService.submitFeedback(
+                     feedbackType: feedbackType!,
+                     selectedFeedback: selectedFeedback ?? finalFeedback,
+                     customFeedback: selectedFeedback == "Other"
+                         ? customFeedbackController.text
+                         : null,
                    );
 
                   showDialog(

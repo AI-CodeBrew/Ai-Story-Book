@@ -6,7 +6,6 @@ from datetime import datetime
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import google.generativeai as genai
-from firebase_admin import credentials, firestore, initialize_app
 from PIL import Image
 import io
 
@@ -17,39 +16,6 @@ from feedback_service import FeedbackService
 
 app = Flask(__name__)
 CORS(app)
-
-# Initialize Firebase
-try:
-    cred = credentials.Certificate("firebase-credentials.json")
-    initialize_app(cred)
-    db = firestore.client()
-except Exception as e:
-    print(f"Firebase initialization failed: {e}")
-    print("Running in development mode without Firebase...")
-    # For development, create a mock database
-    class MockFirestore:
-        def collection(self, name):
-            return MockCollection()
-    
-    class MockCollection:
-        def __init__(self, name="feedback"):
-            self.name = name
-        
-        def add(self, data):
-            print(f"Mock: Adding to {self.name}: {data}")
-            return True
-        
-        def where(self, field, op, value):
-            return self
-        
-        def order_by(self, field, direction=None):
-            return self
-        
-        def stream(self):
-            return []
-    
-    db = MockFirestore()
-
 # Enhanced API Key Pool with rotation for Python backend
 class ApiKeyPool:
     _api_keys = []
@@ -256,7 +222,7 @@ ApiKeyPool.init('ai_storybook_backend')
 gemini_api_key = ApiKeyPool.get_key()
 gemini_image_service = GeminiImageService()
 gemini_text_service = GeminiTextService()
-feedback_service = FeedbackService(db)
+feedback_service = FeedbackService()
 
 if gemini_api_key:
     gemini_image_service.initialize(gemini_api_key)

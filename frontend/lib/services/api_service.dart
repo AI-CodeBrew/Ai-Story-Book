@@ -34,7 +34,6 @@ class ApiService {
       await ApiKeyPool.init('ai_storybook_frontend');
       print('✅ ApiKeyPool.init() completed');
       
-      // Wait for Firebase
       await Future.delayed(const Duration(seconds: 2));
       
       // Try initialize method
@@ -65,7 +64,6 @@ class ApiService {
       // First, ensure ApiKeyPool is properly initialized
       await ApiKeyPool.init('ai_storybook_frontend');
       
-      // Wait a bit for Firebase to fully load the keys
       await Future.delayed(const Duration(milliseconds: 500));
       
       // Try to initialize again if keys are still empty
