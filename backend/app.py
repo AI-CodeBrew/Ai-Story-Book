@@ -5,9 +5,12 @@ import requests
 from datetime import datetime
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
+from dotenv import load_dotenv
 import google.generativeai as genai
 from PIL import Image
 import io
+
+load_dotenv()
 
 # Import our custom services
 from gemini_image_service import GeminiImageService

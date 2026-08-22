@@ -1,7 +1,7 @@
 name: ai_storybook_frontend
 description: Flutter frontend for AI-powered storybook application
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.2+3
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -27,11 +27,12 @@ dependencies:
   path_provider: ^2.1.4
   share_plus: ^10.0.2
   pdf: ^3.11.1
+  sqflite: ^2.3.3+1
+  path: ^1.9.0
 
-  # API Key Pool package
+  # API Key Pool package (local stand-in — original repo is unreachable, see packages/api_key_pool)
   api_key_pool:
-    git:
-      url: https://github.com/IzzaTech-Hub/Api-Keys-Config-Package.git
+    path: packages/api_key_pool
 
 dev_dependencies:
   flutter_test:

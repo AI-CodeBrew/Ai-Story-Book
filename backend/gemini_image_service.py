@@ -40,7 +40,7 @@ class GeminiImageService:
         else:
             print(f'Using API key from pool: {api_key[:10] if api_key else "None"}...')
         
-        url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key={api_key}'
+        url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-image:generateContent?key={api_key}'
         
         headers = {'Content-Type': 'application/json'}
         
@@ -72,7 +72,7 @@ class GeminiImageService:
         while retry_count < max_retries:
             try:
                 # Update URL with current API key (in case it was rotated)
-                url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key={api_key}'
+                url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-image:generateContent?key={api_key}'
                 
                 print(f'Making API request to Gemini for prompt: {prompt} (attempt {retry_count + 1})')
                 response = requests.post(url, headers=headers, json=body)

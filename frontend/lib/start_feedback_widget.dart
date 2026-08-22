@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'utils/app_sizes.dart';
 import 'services/api_service.dart';
+import 'services/database_service.dart';
 
 
 class StarFeedbackWidget extends StatefulWidget {
@@ -157,13 +158,31 @@ class _StarFeedbackWidgetState extends State<StarFeedbackWidget> {
                      isStarred = true;
                    });
 
-                   await ApiService.submitFeedback(
-                     feedbackType: feedbackType!,
-                     selectedFeedback: selectedFeedback ?? finalFeedback,
-                     customFeedback: selectedFeedback == "Other"
-                         ? customFeedbackController.text
-                         : null,
+                   final feedbackTypeValue = feedbackType!;
+                   final selectedFeedbackValue =
+                       selectedFeedback ?? finalFeedback;
+                   final customFeedbackValue = selectedFeedback == "Other"
+                       ? customFeedbackController.text
+                       : null;
+
+                   final localId =
+                       await DatabaseService.instance.insertFeedback(
+                     feedbackType: feedbackTypeValue,
+                     selectedFeedback: selectedFeedbackValue,
+                     customFeedback: customFeedbackValue,
                    );
+
+                   try {
+                     await ApiService.submitFeedback(
+                       feedbackType: feedbackTypeValue,
+                       selectedFeedback: selectedFeedbackValue,
+                       customFeedback: customFeedbackValue,
+                     );
+                     await DatabaseService.instance
+                         .markFeedbackSynced(localId);
+                   } catch (e) {
+                     print("Feedback saved locally but failed to sync: $e");
+                   }
 
                   showDialog(
                     context: context,

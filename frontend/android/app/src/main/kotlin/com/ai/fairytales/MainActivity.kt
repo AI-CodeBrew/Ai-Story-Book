@@ -1,4 +1,4 @@
-package com.ai.storybook
+package com.ai.fairytales
 
 import io.flutter.embedding.android.FlutterActivity
 

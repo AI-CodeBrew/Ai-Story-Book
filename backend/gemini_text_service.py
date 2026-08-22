@@ -52,11 +52,11 @@ class GeminiTextService:
                 # Configure the model
                 if generation_config:
                     model = genai.GenerativeModel(
-                        model_name='gemini-2.0-flash',
+                        model_name='gemini-3.6-flash',
                         generation_config=generation_config
                     )
                 else:
-                    model = genai.GenerativeModel(model_name='gemini-2.0-flash')
+                    model = genai.GenerativeModel(model_name='gemini-3.6-flash')
                 
                 # Build content
                 content_parts = [prompt]

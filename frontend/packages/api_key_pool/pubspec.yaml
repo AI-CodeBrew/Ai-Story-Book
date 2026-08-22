@@ -1,0 +1,7 @@
+name: api_key_pool
+description: Local stand-in for the unreachable IzzaTech-Hub/Api-Keys-Config-Package git dependency.
+version: 0.0.1
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
