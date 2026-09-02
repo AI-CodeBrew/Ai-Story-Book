@@ -1,0 +1,119 @@
+@import "tailwindcss";
+
+/*
+  "Magical Night" design system — structurally the same engineered,
+  luminescent language as a crypto-trust dashboard (glass morphism, glowing
+  borders, gradient text, corner accents, orbital motion), recolored for a
+  children's storybook product: deep indigo night sky instead of true void,
+  warm gold + coral instead of Bitcoin orange, a soft violet for "magic"
+  instead of digital-gold value signaling, and a starfield instead of a
+  blockchain grid.
+*/
+
+:root {
+  --void: #0B0A1A;       /* Storybook Void — deep indigo night, not pure black */
+  --surface: #17152E;    /* Dark Matter equivalent — elevated card surface */
+  --surface-2: #1F1C3A;  /* slightly lighter surface for nested/hover states */
+  --foreground: #FFFFFF;
+  --muted: #A79FC7;      /* Stardust equivalent — soft lavender-gray */
+  --border: #2B2650;     /* Dim Boundary equivalent */
+
+  --gold: #FFC857;       /* Storybook Gold — primary accent (was Bitcoin Orange) */
+  --coral: #FF7B54;      /* Dream Coral — secondary accent (was Burnt Orange) */
+  --violet: #C9A6FF;     /* Starlight Violet — tertiary accent (was Digital Gold) */
+
+  --success: #6EE7B7;
+  --error: #FF6B6B;
+
+  /* legacy story-theme accent colors, unchanged (used by theme/story cards) */
+  --accent-adventure: #C77DFF;
+  --accent-fantasy: #C9A6FF;
+  --accent-space: #7C9BFF;
+  --accent-nature: #6EE7B7;
+  --accent-friendship: #FFC857;
+  --accent-science: #5ED0FA;
+}
+
+@theme inline {
+  --color-void: var(--void);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-gold: var(--gold);
+  --color-coral: var(--coral);
+  --color-violet: var(--violet);
+  --color-success: var(--success);
+  --color-error: var(--error);
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-baloo);
+  --font-mono: var(--font-jetbrains);
+}
+
+body {
+  background: var(--void);
+  color: var(--foreground);
+}
+
+.font-display {
+  font-family: var(--font-baloo), var(--font-inter), sans-serif;
+}
+
+.font-data {
+  font-family: var(--font-jetbrains), monospace;
+}
+
+/* Starfield void texture — a scattered dot "sky" plus a faint constellation
+   grid, both fading toward the edges via a radial mask. This stands in for
+   the crypto system's blockchain grid: same structural role (a breathing,
+   non-flat background), different visual metaphor. */
+.bg-void-texture {
+  position: relative;
+  background-color: var(--void);
+}
+.bg-void-texture::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(rgba(255, 200, 87, 0.9) 1px, transparent 1px),
+    radial-gradient(rgba(201, 166, 255, 0.7) 1px, transparent 1px),
+    linear-gradient(to right, rgba(43, 38, 80, 0.6) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(43, 38, 80, 0.6) 1px, transparent 1px);
+  background-size: 140px 140px, 90px 90px, 50px 50px, 50px 50px;
+  background-position: 0 0, 45px 60px, 0 0, 0 0;
+  mask-image: radial-gradient(circle at center, black 35%, transparent 85%);
+  -webkit-mask-image: radial-gradient(circle at center, black 35%, transparent 85%);
+}
+
+.text-gradient-warm {
+  background-image: linear-gradient(to right, var(--coral), var(--gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.text-gradient-magic {
+  background-image: linear-gradient(to right, var(--gold), var(--violet));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+}
+.animate-float {
+  animation: float 8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-float,
+  .animate-spin-slow,
+  .animate-spin-slow-reverse {
+    animation: none !important;
+  }
+}

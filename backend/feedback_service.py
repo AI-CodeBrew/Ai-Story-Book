@@ -1,11 +1,14 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 import uuid
 
 
 class FeedbackService:
     def __init__(self, db=None):
-        # In-memory store
+        # Mongo-backed when a db handle is supplied; falls back to an
+        # in-memory list only when Mongo isn't configured (e.g. local dev
+        # without MONGODB_URI set).
+        self._col = db.feedback if db is not None else None
         self._feedback: List[Dict[str, Any]] = []
         self.feedback_options = {
             "Positive": [
@@ -33,8 +36,9 @@ class FeedbackService:
         custom_feedback: str = "",
         story_id: Optional[str] = None,
         rating: int = 5,
+        visitor_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Submit feedback to in-memory store."""
+        """Submit feedback to Mongo (or the in-memory fallback)."""
         try:
             final_feedback = (
                 custom_feedback if selected_feedback == "Other" else selected_feedback
@@ -46,17 +50,22 @@ class FeedbackService:
                     "error": "Please provide feedback.",
                 }
 
+            now = datetime.now(timezone.utc)
             feedback_data = {
                 "id": str(uuid.uuid4()),
                 "feedbackType": feedback_type,
                 "selectedFeedback": selected_feedback,
                 "finalFeedback": final_feedback,
                 "rating": rating,
-                "submittedAt": datetime.now().isoformat(),
                 "storyId": story_id,
+                "visitorId": visitor_id,
+                "submittedAt": now if self._col is not None else now.isoformat(),
             }
 
-            self._feedback.append(feedback_data)
+            if self._col is not None:
+                self._col.insert_one(dict(feedback_data))
+            else:
+                self._feedback.append(feedback_data)
             print(f"Feedback stored: {feedback_data}")
 
             return {
@@ -78,6 +87,14 @@ class FeedbackService:
     def get_feedback_for_story(self, story_id: str) -> List[Dict[str, Any]]:
         """Get all feedback for a specific story"""
         try:
+            if self._col is not None:
+                docs = list(self._col.find({"storyId": story_id}).sort("submittedAt", -1))
+                for doc in docs:
+                    doc.pop("_id", None)
+                    submitted_at = doc.get("submittedAt")
+                    if isinstance(submitted_at, datetime):
+                        doc["submittedAt"] = submitted_at.isoformat()
+                return docs
             return [f for f in self._feedback if f.get("storyId") == story_id]
         except Exception as e:
             print(f"Error getting feedback for story: {e}")

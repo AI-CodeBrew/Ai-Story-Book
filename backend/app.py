@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import base64
 import requests
@@ -16,6 +17,10 @@ load_dotenv()
 from gemini_image_service import GeminiImageService
 from gemini_text_service import GeminiTextService
 from feedback_service import FeedbackService
+import mongo
+import story_repository
+import analytics_service
+import auth_service
 
 app = Flask(__name__)
 CORS(app)
@@ -225,7 +230,15 @@ ApiKeyPool.init('ai_storybook_backend')
 gemini_api_key = ApiKeyPool.get_key()
 gemini_image_service = GeminiImageService()
 gemini_text_service = GeminiTextService()
-feedback_service = FeedbackService()
+
+try:
+    _mongo_db = mongo.get_db()
+    print("MongoDB connected")
+except Exception as e:
+    _mongo_db = None
+    print(f"Warning: MongoDB not available ({e}). Feedback will use the in-memory fallback and story/analytics routes will error until MONGODB_URI is reachable.")
+
+feedback_service = FeedbackService(db=_mongo_db)
 
 if gemini_api_key:
     gemini_image_service.initialize(gemini_api_key)
@@ -260,11 +273,8 @@ class StoryService:
             print(f"📖 Generating 10-page story for: {prompt}")
             
             # Generate 10 page scripts first
-            pages = self._generate_10_page_scripts(prompt, theme, additional_context)
-            
-            # Extract title from first page
-            title = self._extract_title(pages[0]['script'])
-            
+            pages, title = self._generate_10_page_scripts(prompt, theme, additional_context)
+
             # Images will be generated separately by frontend
             # Initialize all pages with placeholder images
             for page in pages:
@@ -303,6 +313,7 @@ Requirements:
 - Have a satisfying conclusion on page 10
 
 Format your response as:
+Title: [a short, catchy title for the story, under 8 words]
 Page 1: [content for page 1]
 Page 2: [content for page 2]
 ...
@@ -310,13 +321,15 @@ Page 10: [content for page 10]
 
 Write an engaging {theme.lower()} story that flows naturally across all 10 pages.
 """
-            
+
             if gemini_api_key:
                 story_text = gemini_text_service.generate_text(story_prompt)
+                title = self._extract_title(story_text, prompt)
             else:
                 # Fallback for development
                 story_text = self._generate_fallback_10_pages(prompt, theme)
-            
+                title = f"The {theme} Adventure"
+
             # Parse the response into individual pages
             pages = self._parse_story_pages(story_text)
             
@@ -330,13 +343,13 @@ Write an engaging {theme.lower()} story that flows naturally across all 10 pages
             
             # Trim to exactly 10 pages if more were generated
             pages = pages[:10]
-            
+
             print(f"✅ Generated {len(pages)} page scripts")
-            return pages
-            
+            return pages, title
+
         except Exception as e:
             print(f"❌ Error generating page scripts: {e}")
-            return self._generate_fallback_10_pages(prompt, theme)
+            return self._generate_fallback_10_pages(prompt, theme), f"The {theme} Adventure"
     
     def _parse_story_pages(self, story_text):
         """Parse AI response into individual pages"""
@@ -480,17 +493,21 @@ Please write a complete story with:
 Make the story approximately 500-800 words long.
 """
     
-    def _extract_title(self, content):
-        lines = content.split('\n')
-        for line in lines:
-            trimmed = line.strip()
-            if trimmed and not trimmed.startswith('Title:'):
-                title = trimmed
-                if title.startswith('Title: '):
-                    title = title[7:]
-                if len(title) > 100:
-                    title = title[:100] + '...'
-                return title
+    def _extract_title(self, story_text, prompt=''):
+        """Pull the `Title: ...` line the prompt asked Gemini for. Falls back
+        to a short snippet of the user's prompt if the model didn't include one."""
+        match = re.search(r'(?im)^\s*title:\s*(.+?)\s*$', story_text)
+        if match:
+            title = match.group(1).strip().strip('"')
+            if len(title) > 80:
+                title = title[:80] + '...'
+            return title
+
+        fallback = prompt.strip() or 'Amazing Story'
+        words = fallback.split()
+        if len(words) > 8:
+            fallback = ' '.join(words[:8]) + '...'
+        return fallback.capitalize()
         return 'Amazing Story'
     
     # Old methods removed - now using 10-page workflow
@@ -532,7 +549,8 @@ def health_check():
             'status': 'healthy',
             'timestamp': datetime.now().isoformat(),
             'api_key_configured': bool(gemini_api_key),
-            'key_pool_status': pool_status
+            'key_pool_status': pool_status,
+            'mongo_connected': mongo.ping()
         }), 200
     except Exception as e:
         return jsonify({
@@ -683,13 +701,15 @@ def submit_feedback():
         custom_feedback = data.get('customFeedback', '')
         story_id = data.get('storyId')
         rating = data.get('rating', 5)
-        
+        visitor_id = data.get('visitorId')
+
         result = feedback_service.submit_feedback(
             feedback_type=feedback_type,
             selected_feedback=selected_feedback,
             custom_feedback=custom_feedback,
             story_id=story_id,
-            rating=rating
+            rating=rating,
+            visitor_id=visitor_id
         )
         
         if result['success']:
@@ -852,6 +872,132 @@ def generate_text():
             'success': False,
             'error': str(e)
         }), 500
+
+@app.route('/api/stories/save', methods=['POST'])
+def save_story():
+    """Persist a fully-assembled story (real images already merged in by the
+    caller, mirroring how the mobile app merges per-page /api/generate-image
+    results before display)."""
+    try:
+        data = request.get_json()
+        if not data or 'story' not in data:
+            return jsonify({'success': False, 'error': 'Missing story'}), 400
+
+        story = data['story']
+        for field in ('id', 'title', 'theme', 'pages'):
+            if field not in story:
+                return jsonify({'success': False, 'error': f'Story missing field: {field}'}), 400
+
+        saved = story_repository.save_story(
+            story,
+            visitor_id=data.get('visitorId'),
+            source=data.get('source', 'website'),
+        )
+        return jsonify({'success': True, 'data': saved})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/stories/<story_id>', methods=['GET'])
+def get_story(story_id):
+    try:
+        story = story_repository.get_story(story_id)
+        if not story:
+            return jsonify({'success': False, 'error': 'Story not found'}), 404
+        return jsonify({'success': True, 'data': story})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/stories', methods=['GET'])
+def list_stories():
+    try:
+        is_default_param = request.args.get('isDefault')
+        is_default = None
+        if is_default_param is not None:
+            is_default = is_default_param.lower() == 'true'
+        limit = min(int(request.args.get('limit', 12)), 50)
+
+        stories = story_repository.list_stories(is_default=is_default, limit=limit)
+        return jsonify({'success': True, 'data': stories})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/stories/<story_id>/default', methods=['PATCH'])
+@auth_service.require_admin
+def set_story_default(story_id):
+    try:
+        data = request.get_json() or {}
+        if 'isDefault' not in data:
+            return jsonify({'success': False, 'error': 'Missing isDefault'}), 400
+
+        updated = story_repository.set_default(story_id, data['isDefault'])
+        if not updated:
+            return jsonify({'success': False, 'error': 'Story not found'}), 404
+        return jsonify({'success': True, 'data': updated})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/visits', methods=['POST'])
+def record_visit():
+    try:
+        data = request.get_json()
+        if not data or not data.get('visitorId'):
+            return jsonify({'success': False, 'error': 'Missing visitorId'}), 400
+
+        analytics_service.record_visit(
+            visitor_id=data['visitorId'],
+            path=data.get('path', '/'),
+            event=data.get('event', 'pageview'),
+            user_agent=request.headers.get('User-Agent'),
+            referrer=data.get('referrer'),
+        )
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/admin/login', methods=['POST'])
+def admin_login():
+    try:
+        data = request.get_json()
+        if not data or not data.get('email') or not data.get('password'):
+            return jsonify({'success': False, 'error': 'Missing credentials'}), 400
+
+        admin = auth_service.verify_admin(data['email'], data['password'])
+        if not admin:
+            return jsonify({'success': False, 'error': 'Invalid email or password'}), 401
+
+        token = auth_service.create_token(admin)
+        return jsonify({'success': True, 'data': {'token': token, 'email': admin['email']}})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/admin/me', methods=['GET'])
+@auth_service.require_admin
+def admin_me():
+    return jsonify({'success': True, 'data': {'email': request.admin.get('email')}})
+
+
+@app.route('/api/admin/stats', methods=['GET'])
+@auth_service.require_admin
+def admin_stats():
+    try:
+        granularity = request.args.get('granularity', 'day')
+        start_param = request.args.get('start')
+        end_param = request.args.get('end')
+
+        start = datetime.fromisoformat(start_param) if start_param else None
+        end = datetime.fromisoformat(end_param) if end_param else None
+
+        stats = analytics_service.get_stats(start=start, end=end, granularity=granularity)
+        return jsonify({'success': True, 'data': stats})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))

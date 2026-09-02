@@ -13,7 +13,7 @@ echo "Waiting for backend to start..."
 sleep 3
 
 echo "Starting Flutter frontend app..."
-cd "$SCRIPT_DIR/frontend" && flutter run -d windows &
+cd "$SCRIPT_DIR/fairytale-app/frontend" && flutter run -d windows &
 FRONTEND_PID=$!
 
 echo ""

@@ -22,7 +22,10 @@ A complete AI-powered storybook application with Python Flask backend and Flutte
 cd backend && pip install -r requirements.txt
 
 # Install Flutter frontend dependencies
-cd frontend && flutter pub get
+cd fairytale-app/frontend && flutter pub get
+
+# Install website dependencies
+cd fairytale-web && npm install
 ```
 
 2. **Start Both Backend and Frontend** (Windows):
@@ -38,44 +41,53 @@ chmod +x start_app.sh
 
 3. **Manual Start**:
    - Backend: `cd backend && python app.py`
-   - Frontend: `cd frontend && flutter run`
+   - Frontend: `cd fairytale-app/frontend && flutter run`
+   - Website: `cd fairytale-web && npm run dev`
 
 ## Project Structure
 
 ```
-ai_storybook_gen/
-├── backend/                  # Python Flask backend
-│   ├── app.py               # Main Flask application
-│   ├── requirements.txt     # Python dependencies
-│   ├── vercel.json          # Vercel deployment config
-│   ├── env.example          # Environment variables template
+Ai-Story-Book/
+├── backend/                   # Python Flask backend (shared by fairytale-app and fairytale-web)
+│   ├── app.py                 # Main Flask application
+│   ├── requirements.txt       # Python dependencies
+│   ├── vercel.json            # Vercel deployment config
+│   ├── env.example            # Environment variables template
+│   ├── mongo.py, story_repository.py, analytics_service.py, auth_service.py
+│   ├── bunny_storage.py
 │   ├── gemini_image_service.py
 │   ├── gemini_text_service.py
 │   ├── feedback_service.py
 │   └── test_backend.py
-├── frontend/                 # Flutter app frontend
-│   ├── pubspec.yaml         # Flutter dependencies
-│   ├── lib/
-│   │   ├── screens/
-│   │   │   ├── home_screen.dart
-│   │   │   ├── story_generator_screen.dart
-│   │   │   └── story_viewer_screen.dart
-│   │   ├── providers/
-│   │   │   ├── story_provider.dart
-│   │   │   └── theme_provider.dart
-│   │   ├── models/
-│   │   │   └── story.dart
-│   │   ├── services/
-│   │   │   └── api_service.dart
-│   │   ├── utils/
-│   │   │   └── app_colors.dart
-│   │   ├── start_feedback_widget.dart
-│   │   └── main.dart
-│   └── assets/
-├── start_app.bat             # Windows startup script
-├── start_app.sh              # Unix startup script
-├── setup.bat                 # Windows setup script
-├── setup.sh                  # Unix setup script
+├── fairytale-app/              # The mobile app
+│   └── frontend/               # Flutter app frontend
+│       ├── pubspec.yaml        # Flutter dependencies
+│       ├── lib/
+│       │   ├── screens/
+│       │   │   ├── home_screen.dart
+│       │   │   ├── story_generator_screen.dart
+│       │   │   └── story_viewer_screen.dart
+│       │   ├── providers/
+│       │   │   ├── story_provider.dart
+│       │   │   └── theme_provider.dart
+│       │   ├── models/
+│       │   │   └── story.dart
+│       │   ├── services/
+│       │   │   └── api_service.dart
+│       │   ├── utils/
+│       │   │   └── app_colors.dart
+│       │   ├── start_feedback_widget.dart
+│       │   └── main.dart
+│       └── assets/
+├── fairytale-web/             # The public website + /admin dashboard (Next.js)
+│   └── src/
+│       ├── app/               # pages, /generate, /story/[id], /admin
+│       ├── components/, hooks/, lib/
+│       └── proxy.ts           # gates /admin/*
+├── start_app.bat              # Windows startup script
+├── start_app.sh               # Unix startup script
+├── setup.bat                  # Windows setup script
+├── setup.sh                   # Unix setup script
 ├── README.md
 ├── CONFIGURATION.md
 └── DEPLOYMENT.md
@@ -168,7 +180,8 @@ flutter run
 
 1. **Install Dependencies**: Run setup scripts or manual installation
 2. **Start the Backend**: Run `cd backend && python app.py`
-3. **Launch the Frontend**: Run `flutter run`
+3. **Launch the Frontend**: Run `cd fairytale-app/frontend && flutter run`
+   - or launch the website instead: `cd fairytale-web && npm run dev`
 4. **Create Stories**: 
    - Choose a theme (Adventure, Fantasy, Space, etc.)
    - Enter your story prompt

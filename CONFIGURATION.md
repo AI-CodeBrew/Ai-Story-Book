@@ -93,8 +93,8 @@ PORT=8080
 ### Frontend Configuration
 For Flutter, you'll need to add Firebase configuration files:
 
-1. **Android**: Add `google-services.json` to `frontend/android/app/`
-2. **iOS**: Add `GoogleService-Info.plist` to `frontend/ios/Runner/`
+1. **Android**: Add `google-services.json` to `fairytale-app/frontend/android/app/`
+2. **iOS**: Add `GoogleService-Info.plist` to `fairytale-app/frontend/ios/Runner/`
 
 ## 4. Running the Application
 
@@ -132,7 +132,7 @@ flutter run
 4. **Install Command**: Leave empty (handled by build command)
 
 ### Play Store Deployment
-1. **API Endpoint**: Update `frontend/lib/services/api_service.dart` with your Vercel URL
+1. **API Endpoint**: Update `fairytale-app/frontend/lib/services/api_service.dart` with your Vercel URL
 2. **Build**: `flutter build appbundle`
 3. **Upload**: Follow Google Play Console guidelines
 

@@ -43,7 +43,7 @@ Click "Deploy" and wait for the build to complete.
 ## Frontend Deployment (Play Store)
 
 ### Step 1: Update API Endpoint
-In `frontend/lib/services/api_service.dart`, change:
+In `fairytale-app/frontend/lib/services/api_service.dart`, change:
 ```dart
 // For development - local Flask server
 static const String baseUrl = 'http://localhost:8080/api';

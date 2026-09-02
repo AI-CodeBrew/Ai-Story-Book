@@ -37,7 +37,7 @@ if %errorlevel% equ 0 (
 cd /d "%~dp0"
 
 echo Installing Flutter frontend dependencies...
-cd /d "%~dp0frontend"
+cd /d "%~dp0fairytale-app\frontend"
 flutter pub get
 
 if %errorlevel% equ 0 (
@@ -56,7 +56,8 @@ echo.
 echo Next steps:
 echo 1. Configure your API keys in environment variables
 echo 2. Start the backend: cd backend ^&^& python app.py
-echo 3. Start the frontend: cd frontend ^&^& flutter run -d windows
+echo 3. Start the frontend: cd fairytale-app\frontend ^&^& flutter run -d windows
+echo 4. Start the website: cd fairytale-web ^&^& npm run dev
 echo.
 echo For detailed instructions, see README.md
 pause
