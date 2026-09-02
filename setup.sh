@@ -29,7 +29,7 @@ else
     exit 1
 fi
 
-cd ../fairytale-app/frontend
+cd ../fairytale-app
 
 echo "Installing Flutter frontend dependencies..."
 flutter pub get
@@ -47,7 +47,7 @@ echo ""
 echo "Next steps:"
 echo "1. Configure your API keys in environment variables"
 echo "2. Start the backend: cd backend && python app.py"
-echo "3. Start the frontend: cd fairytale-app/frontend && flutter run"
-echo "4. Start the website: cd fairytale-web && npm run dev"
+echo "3. Start the frontend: cd fairytale-app && flutter run"
+echo "4. Start the website: cd fairytale && npm run dev"
 echo ""
 echo "For detailed instructions, see README.md"

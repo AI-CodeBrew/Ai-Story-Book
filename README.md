@@ -22,10 +22,10 @@ A complete AI-powered storybook application with Python Flask backend and Flutte
 cd backend && pip install -r requirements.txt
 
 # Install Flutter frontend dependencies
-cd fairytale-app/frontend && flutter pub get
+cd fairytale-app && flutter pub get
 
 # Install website dependencies
-cd fairytale-web && npm install
+cd fairytale && npm install
 ```
 
 2. **Start Both Backend and Frontend** (Windows):
@@ -41,14 +41,14 @@ chmod +x start_app.sh
 
 3. **Manual Start**:
    - Backend: `cd backend && python app.py`
-   - Frontend: `cd fairytale-app/frontend && flutter run`
-   - Website: `cd fairytale-web && npm run dev`
+   - Frontend: `cd fairytale-app && flutter run`
+   - Website: `cd fairytale && npm run dev`
 
 ## Project Structure
 
 ```
 Ai-Story-Book/
-├── backend/                   # Python Flask backend (shared by fairytale-app and fairytale-web)
+├── backend/                   # Python Flask backend (shared by fairytale-app and fairytale)
 │   ├── app.py                 # Main Flask application
 │   ├── requirements.txt       # Python dependencies
 │   ├── vercel.json            # Vercel deployment config
@@ -59,27 +59,26 @@ Ai-Story-Book/
 │   ├── gemini_text_service.py
 │   ├── feedback_service.py
 │   └── test_backend.py
-├── fairytale-app/              # The mobile app
-│   └── frontend/               # Flutter app frontend
-│       ├── pubspec.yaml        # Flutter dependencies
-│       ├── lib/
-│       │   ├── screens/
-│       │   │   ├── home_screen.dart
-│       │   │   ├── story_generator_screen.dart
-│       │   │   └── story_viewer_screen.dart
-│       │   ├── providers/
-│       │   │   ├── story_provider.dart
-│       │   │   └── theme_provider.dart
-│       │   ├── models/
-│       │   │   └── story.dart
-│       │   ├── services/
-│       │   │   └── api_service.dart
-│       │   ├── utils/
-│       │   │   └── app_colors.dart
-│       │   ├── start_feedback_widget.dart
-│       │   └── main.dart
-│       └── assets/
-├── fairytale-web/             # The public website + /admin dashboard (Next.js)
+├── fairytale-app/              # The Flutter mobile app (no nested frontend/ folder)
+│   ├── pubspec.yaml            # Flutter dependencies
+│   ├── lib/
+│   │   ├── screens/
+│   │   │   ├── home_screen.dart
+│   │   │   ├── story_generator_screen.dart
+│   │   │   └── story_viewer_screen.dart
+│   │   ├── providers/
+│   │   │   ├── story_provider.dart
+│   │   │   └── theme_provider.dart
+│   │   ├── models/
+│   │   │   └── story.dart
+│   │   ├── services/
+│   │   │   └── api_service.dart
+│   │   ├── utils/
+│   │   │   └── app_colors.dart
+│   │   ├── start_feedback_widget.dart
+│   │   └── main.dart
+│   └── assets/
+├── fairytale/                  # The public website + /admin dashboard (Next.js)
 │   └── src/
 │       ├── app/               # pages, /generate, /story/[id], /admin
 │       ├── components/, hooks/, lib/
@@ -180,8 +179,8 @@ flutter run
 
 1. **Install Dependencies**: Run setup scripts or manual installation
 2. **Start the Backend**: Run `cd backend && python app.py`
-3. **Launch the Frontend**: Run `cd fairytale-app/frontend && flutter run`
-   - or launch the website instead: `cd fairytale-web && npm run dev`
+3. **Launch the Frontend**: Run `cd fairytale-app && flutter run`
+   - or launch the website instead: `cd fairytale && npm run dev`
 4. **Create Stories**: 
    - Choose a theme (Adventure, Fantasy, Space, etc.)
    - Enter your story prompt
