@@ -119,15 +119,15 @@ class ApiService {
     }
   }
   
-  // Story generation
-  static Future<Story> generateStory(StoryRequest request) async {
+  // Story generation (login-gated on the backend)
+  static Future<Story> generateStory(StoryRequest request, String token) async {
     try {
       print('🔗 Making API request to: $baseUrl/stories/generate');
       print('📝 Request data: ${jsonEncode(request.toJson())}');
 
       final response = await http.post(
         Uri.parse('$baseUrl/stories/generate'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
         body: jsonEncode(request.toJson()),
       ).timeout(const Duration(seconds: 60)); // Add timeout
 
@@ -159,6 +159,112 @@ class ApiService {
       print('🔴 Error type: ${e.runtimeType}');
       throw Exception('Network error: $e');
     }
+  }
+
+  // Persist a fully-assembled story (login-gated on the backend)
+  static Future<Story> saveStory(Story story, String token, {String? visitorId}) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/stories/save'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      body: jsonEncode({'story': story.toJson(), 'visitorId': visitorId, 'source': 'mobile'}),
+    );
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200 && data['success'] == true) {
+      return Story.fromJson(data['data']);
+    }
+    throw Exception(data['error'] ?? 'Failed to save story');
+  }
+
+  // List stories (public — used for the home feed and Library, no login required)
+  static Future<List<Story>> listStories({bool? isDefault, String? theme, int limit = 50}) async {
+    final params = <String, String>{'limit': '$limit'};
+    if (isDefault != null) params['isDefault'] = '$isDefault';
+    if (theme != null) params['theme'] = theme;
+    final uri = Uri.parse('$baseUrl/stories').replace(queryParameters: params);
+    final response = await http.get(uri, headers: {'Content-Type': 'application/json'});
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200 && data['success'] == true) {
+      return (data['data'] as List).map((json) => Story.fromJson(json)).toList();
+    }
+    throw Exception(data['error'] ?? 'Failed to load stories');
+  }
+
+  static Future<Story> getStory(String id) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/stories/$id'),
+      headers: {'Content-Type': 'application/json'},
+    );
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200 && data['success'] == true) {
+      return Story.fromJson(data['data']);
+    }
+    throw Exception(data['error'] ?? 'Failed to load story');
+  }
+
+  // A logged-in user's own story history
+  static Future<List<Story>> myStories(String token, {int limit = 50}) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/stories/mine?limit=$limit'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+    );
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200 && data['success'] == true) {
+      return (data['data'] as List).map((json) => Story.fromJson(json)).toList();
+    }
+    throw Exception(data['error'] ?? 'Failed to load your stories');
+  }
+
+  // --- Auth ---
+
+  static Future<Map<String, dynamic>> signup(String email, String password, String name) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/signup'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email, 'password': password, 'name': name}),
+    );
+    final data = jsonDecode(response.body);
+    if ((response.statusCode == 200 || response.statusCode == 201) && data['success'] == true) {
+      return Map<String, dynamic>.from(data['data']);
+    }
+    throw Exception(data['error'] ?? 'Signup failed');
+  }
+
+  static Future<Map<String, dynamic>> login(String email, String password) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/login'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email, 'password': password}),
+    );
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200 && data['success'] == true) {
+      return Map<String, dynamic>.from(data['data']);
+    }
+    throw Exception(data['error'] ?? 'Login failed');
+  }
+
+  static Future<Map<String, dynamic>> googleLogin(String idToken) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/google'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'idToken': idToken}),
+    );
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200 && data['success'] == true) {
+      return Map<String, dynamic>.from(data['data']);
+    }
+    throw Exception(data['error'] ?? 'Google sign-in failed');
+  }
+
+  static Future<Map<String, dynamic>> me(String token) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/auth/me'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+    );
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200 && data['success'] == true) {
+      return Map<String, dynamic>.from(data['data']);
+    }
+    throw Exception(data['error'] ?? 'Failed to load profile');
   }
 
   // Submit feedback

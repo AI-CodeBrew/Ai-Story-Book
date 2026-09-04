@@ -14,7 +14,16 @@ export interface Story {
   additionalContext?: string | null;
   isDefault?: boolean;
   visitorId?: string | null;
+  userId?: string | null;
   source?: string;
+  createdAt: string;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  authProvider: string;
   createdAt: string;
 }
 

@@ -1,15 +1,18 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../providers/story_provider.dart';
-import '../providers/theme_provider.dart';
-import '../utils/app_colors.dart';
-import '../utils/ai_config.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/story.dart';
-import '../services/connectivity_service.dart';
+import '../providers/auth_provider.dart';
+import '../services/api_service.dart';
+import '../utils/app_colors.dart';
+import '../utils/theme_options.dart';
+import 'create_story_screen.dart';
+import 'login_screen.dart';
 import 'story_viewer_screen.dart';
 
+/// The app's home feed: the same admin-curated public stories shown on the
+/// website landing page, readable without logging in.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -18,469 +21,109 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final TextEditingController _promptController = TextEditingController();
-  final TextEditingController _contextController = TextEditingController();
-  String _selectedTheme = 'Adventure';
-
-  final List<Map<String, dynamic>> _themes = [
-    {
-      'name': 'Adventure',
-      'icon': Icons.explore,
-      'color': AppColors.adventure,
-      'description': 'Exciting quests and discoveries',
-    },
-    {
-      'name': 'Fantasy',
-      'icon': Icons.auto_awesome,
-      'color': AppColors.fantasy,
-      'description': 'Magical worlds and creatures',
-    },
-    {
-      'name': 'Space',
-      'icon': Icons.rocket_launch,
-      'color': AppColors.space,
-      'description': 'Futuristic space adventures',
-    },
-    {
-      'name': 'Nature',
-      'icon': Icons.eco,
-      'color': AppColors.nature,
-      'description': 'Beautiful natural world',
-    },
-    {
-      'name': 'Friendship',
-      'icon': Icons.favorite,
-      'color': AppColors.friendship,
-      'description': 'Heartwarming friendship stories',
-    },
-    {
-      'name': 'Science',
-      'icon': Icons.science,
-      'color': AppColors.science,
-      'description': 'Educational scientific concepts',
-    },
-  ];
+  List<Story> _stories = [];
+  bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    // Set default theme to Adventure if not already set
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      try {
-        _selectedTheme = context.read<ThemeProvider>().selectedTheme;
-      } catch (e) {
-        // If ThemeProvider not available, keep default
-        _selectedTheme = 'Adventure';
-      }
+    _loadStories();
+  }
+
+  Future<void> _loadStories() async {
+    setState(() {
+      _loading = true;
+      _error = null;
     });
-    
+    try {
+      var stories = await ApiService.listStories(isDefault: true, limit: 8);
+      if (stories.isEmpty) {
+        stories = await ApiService.listStories(limit: 12);
+      }
+      if (!mounted) return;
+      setState(() {
+        _stories = stories;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Failed to load stories: $e';
+        _loading = false;
+      });
+    }
   }
 
-  Widget _buildHeader() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF667eea), Color(0xFF764ba2)],
-                ),
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF667eea).withOpacity(0.4),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.auto_stories,
-                size: 28,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'AI Storybook',
-                    style: GoogleFonts.nunito(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF2c3e50),
-                    ),
-                  ),
-                  Text(
-                    'Create magical stories with AI',
-                    style: GoogleFonts.nunito(
-                      fontSize: 14,
-                      color: const Color(0xFF7f8c8d),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStoryForm() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: const Color(0xFFe0e6ed),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Story Prompt Section
-          Text(
-            'What story would you like to create?',
-            style: GoogleFonts.nunito(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: const Color(0xFF2c3e50),
-            ),
-          ),
-          const SizedBox(height: 16),
-          
-          // Story Prompt Input
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: const Color(0xFFe0e6ed),
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: TextField(
-              controller: _promptController,
-              maxLines: 4,
-              style: GoogleFonts.nunito(
-                color: const Color(0xFF2c3e50),
-                fontSize: 14,
-              ),
-              decoration: InputDecoration(
-                hintText: 'A brave knight rescues a dragon from a princess...',
-                hintStyle: GoogleFonts.nunito(
-                  color: const Color(0xFF95a5a6),
-                  fontSize: 14,
-                ),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.all(18),
-              ),
-            ),
-          ),
-          
-          const SizedBox(height: 24),
-          
-          // Generate Button
-          _buildGenerateButton(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGenerateButton() {
-    return Consumer<StoryProvider>(
-      builder: (context, storyProvider, child) {
-        return SizedBox(
-          width: double.infinity,
-          height: 56,
-          child: ElevatedButton(
-            onPressed: storyProvider.isLoading || storyProvider.isLoadingImages
-                ? null
-                : () => _generateStory(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.transparent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              elevation: 0,
-            ),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF667eea), Color(0xFF764ba2)],
-                ),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF667eea).withOpacity(0.4),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: (storyProvider.isLoading || storyProvider.isLoadingImages)
-                  ? Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Generating Story...',
-                          style: GoogleFonts.nunito(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    )
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.auto_stories, color: Colors.white, size: 20),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Generate Story',
-                          style: GoogleFonts.nunito(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildThemeInspirations() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(
-              Icons.lightbulb_outline,
-              color: Colors.amber,
-              size: 20,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'Story Inspirations',
-              style: GoogleFonts.nunito(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFF2c3e50),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Choose a theme to spark your creativity',
-          style: GoogleFonts.nunito(
-            fontSize: 14,
-            color: const Color(0xFF7f8c8d),
-          ),
-        ),
-        const SizedBox(height: 16),
-        
-        // Theme Cards
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: _themes.map((theme) {
-            final isSelected = _selectedTheme == theme['name'];
-            return GestureDetector(
-              onTap: () {
-                setState(() {
-                  _selectedTheme = theme['name'] as String;
-                });
-                try {
-                  context.read<ThemeProvider>().setTheme(_selectedTheme);
-                } catch (e) {
-                  // Provider not available, continue with local state
-                }
-              },
-              child: Container(
-                width: (MediaQuery.of(context).size.width - 64) / 2,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  gradient: isSelected 
-                      ? LinearGradient(
-                          colors: [
-                            theme['color'] as Color,
-                            (theme['color'] as Color).withOpacity(0.8),
-                          ],
-                        )
-                      : LinearGradient(
-                          colors: [
-                            Colors.white,
-                            const Color(0xFFf8f9ff),
-                          ],
-                        ),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: isSelected 
-                        ? theme['color'] as Color
-                        : const Color(0xFFe0e6ed),
-                    width: isSelected ? 2 : 1,
-                  ),
-                  boxShadow: isSelected ? [
-                    BoxShadow(
-                      color: (theme['color'] as Color).withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ] : [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Icon(
-                        theme['icon'] as IconData,
-                        size: 16,
-                        color: isSelected ? Colors.white : theme['color'] as Color,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        theme['name'] as String,
-                        style: GoogleFonts.nunito(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: isSelected ? Colors.white : const Color(0xFF2c3e50),
-                        ),
-                      ),
-                    ),
-                    if (isSelected)
-                      Container(
-                        padding: const EdgeInsets.all(3),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.check,
-                          size: 10,
-                          color: Colors.black,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ],
-    );
+  Future<void> _startCreating(BuildContext context) async {
+    final auth = context.read<AuthProvider>();
+    if (!auth.isLoggedIn) {
+      final loggedIn = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+      if (loggedIn != true || !context.mounted) return;
+    }
+    if (!context.mounted) return;
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateStoryScreen()));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFf8f9ff), // Fallback color
+      backgroundColor: const Color(0xFFf8f9ff),
       body: Container(
-        height: MediaQuery.of(context).size.height,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFf8f9ff),
-              Color(0xFFe8f2ff),
-              Color(0xFFf0f4ff),
-            ],
+            colors: [Color(0xFFf8f9ff), Color(0xFFe8f2ff), Color(0xFFf0f4ff)],
           ),
         ),
         child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header Section
-                _buildHeader(),
-                
-                const SizedBox(height: 32),
-                
-                // Story Creation Form
-                _buildStoryForm(),
-                
-                const SizedBox(height: 24),
-                
-                // Theme Inspirations Section
-                _buildThemeInspirations(),
-                
-                const SizedBox(height: 16),
-                
-                // Error Display
-                Consumer<StoryProvider>(
-                  builder: (context, storyProvider, child) {
-                    if (storyProvider.error != null) {
-                      return Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: AppColors.error.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.error),
-                        ),
-                        child: Text(
-                          storyProvider.error!,
-                          style: GoogleFonts.nunito(
-                            color: AppColors.error,
-                            fontSize: 14,
-                          ),
-                        ),
-                      );
-                    }
-                    return const SizedBox.shrink();
-                  },
-                ),
+          child: RefreshIndicator(
+            onRefresh: _loadStories,
+            child: CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(child: _buildHeader(context)),
+                SliverToBoxAdapter(child: _buildCreateCta(context)),
+                if (_loading)
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.all(40),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                  )
+                else if (_error != null)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(_error!, style: GoogleFonts.nunito(color: AppColors.error)),
+                    ),
+                  )
+                else if (_stories.isEmpty)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text('No stories yet — be the first to create one!', style: GoogleFonts.nunito(color: AppColors.textSecondary)),
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                    sliver: SliverGrid(
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        mainAxisSpacing: 16,
+                        crossAxisSpacing: 16,
+                        childAspectRatio: 0.72,
+                      ),
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) => _StoryTile(story: _stories[index]),
+                        childCount: _stories.length,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -489,193 +132,132 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _generateStory(BuildContext context) async {
-    if (_promptController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Please enter a story prompt',
-            style: GoogleFonts.nunito(),
+  Widget _buildHeader(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [Color(0xFF667eea), Color(0xFF764ba2)]),
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [BoxShadow(color: const Color(0xFF667eea).withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))],
+            ),
+            child: const Icon(Icons.auto_stories, size: 28, color: Colors.white),
           ),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-
-    // Check internet connectivity before generating story
-    final hasInternet = await ConnectivityService.hasInternetConnection();
-    
-    if (!hasInternet) {
-      _showNoInternetDialog(context);
-      return;
-    }
-
-    final request = StoryRequest(
-      prompt: _promptController.text.trim(),
-      theme: _selectedTheme,
-      additionalContext: _contextController.text.trim().isNotEmpty
-          ? _contextController.text.trim()
-          : null,
-      modelName: AIConfig.modelName,
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('AI Storybook', style: GoogleFonts.nunito(fontSize: 26, fontWeight: FontWeight.bold, color: const Color(0xFF2c3e50))),
+                Text('Magical stories, hand-picked for you', style: GoogleFonts.nunito(fontSize: 14, color: const Color(0xFF7f8c8d))),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
-
-    // Listen to story provider changes to navigate when everything is complete
-      final storyProvider = context.read<StoryProvider>();
-    
-    // Start the story generation process
-    storyProvider.generateStory(request);
-    
-    // Listen for completion (both story text and images done)
-    void checkCompletion() {
-      if (!storyProvider.isLoading && !storyProvider.isLoadingImages && storyProvider.currentStory != null) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => StoryViewerScreen(story: storyProvider.currentStory!),
-          ),
-        );
-      }
-    }
-    
-    // Check completion periodically
-    Timer.periodic(const Duration(milliseconds: 500), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      
-      checkCompletion();
-      
-      // Cancel timer if we're done (either success or error)
-      if (!storyProvider.isLoading && !storyProvider.isLoadingImages) {
-        timer.cancel();
-      }
-    });
   }
 
-  void _showNoInternetDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+  Widget _buildCreateCta(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+      child: SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: ElevatedButton(
+          onPressed: () => _startCreating(context),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            elevation: 0,
           ),
-          title: Row(
-            children: [
-              Icon(
-                Icons.wifi_off,
-                color: AppColors.error,
-                size: 28,
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'No Internet Connection',
-                style: GoogleFonts.nunito(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ],
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [Color(0xFF667eea), Color(0xFF764ba2)]),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Text('Create a Story', style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),
+              ],
+            ),
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Please check your internet connection and try again.',
-                style: GoogleFonts.nunito(
-                  fontSize: 14,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
+        ),
+      ),
+    );
+  }
+}
+
+class _StoryTile extends StatelessWidget {
+  final Story story;
+  const _StoryTile({required this.story});
+
+  @override
+  Widget build(BuildContext context) {
+    final cover = story.pages.firstWhere(
+      (p) => p.imageUrl != null && p.imageUrl!.isNotEmpty,
+      orElse: () => story.pages.first,
+    ).imageUrl;
+    final color = kThemeOptions.firstWhere(
+      (t) => t.name.toLowerCase() == story.theme.toLowerCase(),
+      orElse: () => kThemeOptions.first,
+    ).color;
+
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => StoryViewerScreen(storyId: story.id)),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (cover != null && cover.isNotEmpty)
+              CachedNetworkImage(imageUrl: cover, fit: BoxFit.cover)
+            else
+              Container(color: color.withOpacity(0.3), child: const Center(child: Icon(Icons.menu_book, size: 40, color: Colors.white))),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(12, 24, 12, 10),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Colors.black.withOpacity(0.8)],
+                  ),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: AppColors.primary,
-                      size: 20,
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(20)),
+                      child: Text(story.theme, style: GoogleFonts.nunito(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white)),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Story generation requires an active internet connection to access AI services.',
-                        style: GoogleFonts.nunito(
-                          fontSize: 12,
-                          color: AppColors.primary,
-                        ),
-                      ),
+                    const SizedBox(height: 6),
+                    Text(
+                      story.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.nunito(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                Navigator.of(context).pop();
-                
-                // Check connectivity again
-                final hasInternet = await ConnectivityService.hasInternetConnection();
-                if (hasInternet) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Internet connection restored! You can now generate stories.',
-                        style: GoogleFonts.nunito(),
-                      ),
-                      backgroundColor: AppColors.success,
-                      duration: const Duration(seconds: 3),
-                    ),
-                  );
-                }
-              },
-              child: Text(
-                'Check Again',
-                style: GoogleFonts.nunito(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: Text(
-                'OK',
-                style: GoogleFonts.nunito(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
             ),
           ],
-        );
-      },
+        ),
+      ),
     );
-  }
-
-  @override
-  void dispose() {
-    _promptController.dispose();
-    _contextController.dispose();
-    super.dispose();
   }
 }

@@ -11,12 +11,15 @@ import 'package:pdf/widgets.dart' as pw;
 import '../utils/app_colors.dart';
 import '../widgets/smart_image_widget.dart';
 import '../models/story.dart';
+import '../services/api_service.dart';
 import '../start_feedback_widget.dart';
 
 class StoryViewerScreen extends StatefulWidget {
-  final Story story;
+  final Story? story;
+  final String? storyId;
 
-  const StoryViewerScreen({super.key, required this.story});
+  const StoryViewerScreen({super.key, this.story, this.storyId})
+      : assert(story != null || storyId != null, 'Provide either story or storyId');
 
   @override
   State<StoryViewerScreen> createState() => _StoryViewerScreenState();
@@ -29,6 +32,8 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
   int _currentPage = 0;
   bool _isPlaying = false;
   List<StoryPage> _pages = [];
+  Story? _story;
+  String? _loadError;
 
   @override
   void initState() {
@@ -36,7 +41,24 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     _pageController = PageController();
     _flutterTts = FlutterTts();
     _initializeTts();
-    _createPages();
+    if (widget.story != null) {
+      _story = widget.story;
+      _createPages();
+    } else {
+      _loadStoryById();
+    }
+  }
+
+  Future<void> _loadStoryById() async {
+    try {
+      final story = await ApiService.getStory(widget.storyId!);
+      if (!mounted) return;
+      setState(() => _story = story);
+      _createPages();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadError = 'Failed to load story: $e');
+    }
   }
 
   void _initializeTts() {
@@ -47,10 +69,10 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
   }
 
   void _createPages() {
-    final content = widget.story.content;
-    final imageUrls = widget.story.imageUrls;
-    final title = widget.story.title;
-    final theme = widget.story.theme;
+    final content = _story!.content;
+    final imageUrls = _story!.imageUrls;
+    final title = _story!.title;
+    final theme = _story!.theme;
 
     // Split content into sentences for better page distribution
     final sentences = content.split(RegExp(r'[.!?]+\s*')).where((s) => s.trim().isNotEmpty).toList();
@@ -128,7 +150,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
       
       // Get directory for saving
       final directory = await getApplicationDocumentsDirectory();
-      final fileName = '${widget.story.title.replaceAll(' ', '_')}_Story.pdf';
+      final fileName = '${_story!.title.replaceAll(' ', '_')}_Story.pdf';
       final filePath = '${directory.path}/$fileName';
       
       // Write PDF to file
@@ -141,7 +163,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
       // Share the PDF
       await Share.shareXFiles(
         [XFile(filePath)],
-        text: 'Check out this amazing story: ${widget.story.title}',
+        text: 'Check out this amazing story: ${_story!.title}',
       );
       
       // Show success message
@@ -173,7 +195,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
   }
 
   Future<Uint8List> _generatePDFContent() async {
-    final story = widget.story;
+    final story = _story!;
     final pdf = pw.Document();
     
     // Add cover page
@@ -479,6 +501,25 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (_story == null) {
+      return Scaffold(
+        body: Container(
+          decoration: const BoxDecoration(gradient: AppColors.backgroundGradient),
+          child: Center(
+            child: _loadError != null
+                ? Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      _loadError!,
+                      style: GoogleFonts.nunito(color: Colors.white),
+                      textAlign: TextAlign.center,
+                    ),
+                  )
+                : const CircularProgressIndicator(color: Colors.white),
+          ),
+        ),
+      );
+    }
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(

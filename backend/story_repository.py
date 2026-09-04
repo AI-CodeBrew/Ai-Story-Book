@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timezone
 
 from pymongo import ReturnDocument
@@ -17,7 +18,7 @@ def _serialize(doc):
     return doc
 
 
-def save_story(story, visitor_id=None, source='website'):
+def save_story(story, visitor_id=None, user_id=None, source='website'):
     """Persist a fully-assembled story (real images already merged in).
     Upserts by the story's own `id` so re-saving the same id is idempotent.
     """
@@ -33,6 +34,7 @@ def save_story(story, visitor_id=None, source='website'):
         'additionalContext': story.get('additionalContext'),
         'isDefault': False,
         'visitorId': visitor_id,
+        'userId': user_id,
         'source': source,
         'createdAt': datetime.now(timezone.utc),
     }
@@ -45,13 +47,21 @@ def get_story(story_id):
     return _serialize(db.stories.find_one({'id': story_id}))
 
 
-def list_stories(is_default=None, limit=12):
+def list_stories(is_default=None, limit=12, theme=None, user_id=None):
     db = mongo.get_db()
     query = {}
     if is_default is not None:
         query['isDefault'] = is_default
+    if theme:
+        query['theme'] = {'$regex': f'^{re.escape(theme)}$', '$options': 'i'}
+    if user_id:
+        query['userId'] = user_id
     cursor = db.stories.find(query).sort('createdAt', -1).limit(limit)
     return [_serialize(doc) for doc in cursor]
+
+
+def list_stories_by_user(user_id, limit=50):
+    return list_stories(user_id=user_id, limit=limit)
 
 
 def set_default(story_id, is_default):

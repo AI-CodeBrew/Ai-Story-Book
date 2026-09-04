@@ -21,6 +21,7 @@ import mongo
 import story_repository
 import analytics_service
 import auth_service
+import user_service
 
 app = Flask(__name__)
 CORS(app)
@@ -665,6 +666,7 @@ def manual_rotate_key():
         }), 500
 
 @app.route('/api/stories/generate', methods=['POST'])
+@auth_service.require_user
 def generate_story():
     try:
         data = request.get_json()
@@ -874,6 +876,7 @@ def generate_text():
         }), 500
 
 @app.route('/api/stories/save', methods=['POST'])
+@auth_service.require_user
 def save_story():
     """Persist a fully-assembled story (real images already merged in by the
     caller, mirroring how the mobile app merges per-page /api/generate-image
@@ -891,6 +894,7 @@ def save_story():
         saved = story_repository.save_story(
             story,
             visitor_id=data.get('visitorId'),
+            user_id=request.user['sub'],
             source=data.get('source', 'website'),
         )
         return jsonify({'success': True, 'data': saved})
@@ -913,12 +917,28 @@ def get_story(story_id):
 def list_stories():
     try:
         is_default_param = request.args.get('isDefault')
-        is_default = None
+        theme = request.args.get('theme')
         if is_default_param is not None:
             is_default = is_default_param.lower() == 'true'
+        else:
+            # No explicit filter requested: public/anonymous callers only ever
+            # see admin-curated (isDefault) stories. Only a verified admin
+            # token can pull back every story in the database.
+            is_default = None if auth_service.try_decode_admin(request) else True
         limit = min(int(request.args.get('limit', 12)), 50)
 
-        stories = story_repository.list_stories(is_default=is_default, limit=limit)
+        stories = story_repository.list_stories(is_default=is_default, limit=limit, theme=theme)
+        return jsonify({'success': True, 'data': stories})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/stories/mine', methods=['GET'])
+@auth_service.require_user
+def list_my_stories():
+    try:
+        limit = min(int(request.args.get('limit', 50)), 100)
+        stories = story_repository.list_stories_by_user(request.user['sub'], limit=limit)
         return jsonify({'success': True, 'data': stories})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -957,6 +977,72 @@ def record_visit():
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/auth/signup', methods=['POST'])
+def auth_signup():
+    try:
+        data = request.get_json() or {}
+        try:
+            user = user_service.signup(data.get('email'), data.get('password'), data.get('name'))
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+
+        token = auth_service.create_user_token(user)
+        return jsonify({'success': True, 'data': {'token': token, 'user': user_service._serialize(user)}}), 201
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/auth/login', methods=['POST'])
+def auth_login():
+    try:
+        data = request.get_json() or {}
+        if not data.get('email') or not data.get('password'):
+            return jsonify({'success': False, 'error': 'Missing credentials'}), 400
+
+        user = user_service.login(data['email'], data['password'])
+        if not user:
+            return jsonify({'success': False, 'error': 'Invalid email or password'}), 401
+
+        token = auth_service.create_user_token(user)
+        return jsonify({'success': True, 'data': {'token': token, 'user': user_service._serialize(user)}})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/auth/google', methods=['POST'])
+def auth_google():
+    try:
+        data = request.get_json() or {}
+        if not data.get('idToken'):
+            return jsonify({'success': False, 'error': 'Missing idToken'}), 400
+
+        try:
+            claims = auth_service.verify_google_id_token(data['idToken'])
+        except Exception:
+            return jsonify({'success': False, 'error': 'Invalid Google token'}), 401
+
+        user = user_service.find_or_create_google_user(claims)
+        token = auth_service.create_user_token(user)
+        return jsonify({'success': True, 'data': {'token': token, 'user': user_service._serialize(user)}})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+def auth_logout():
+    # JWTs are stateless; "logout" is the client discarding its token.
+    return jsonify({'success': True})
+
+
+@app.route('/api/auth/me', methods=['GET'])
+@auth_service.require_user
+def auth_me():
+    user = user_service.get_user_by_id(request.user['sub'])
+    if not user:
+        return jsonify({'success': False, 'error': 'User not found'}), 404
+    return jsonify({'success': True, 'data': user_service._serialize(user)})
 
 
 @app.route('/api/admin/login', methods=['POST'])

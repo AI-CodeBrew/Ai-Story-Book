@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:api_key_pool/api_key_pool.dart';
-import 'screens/home_screen.dart';
+import 'screens/main_shell.dart';
 import 'providers/story_provider.dart';
 import 'providers/theme_provider.dart';
+import 'providers/auth_provider.dart';
 import 'utils/app_colors.dart';
 import 'utils/app_sizes.dart';
 import 'utils/app_strings.dart';
@@ -15,11 +16,16 @@ void main() async {
 
   await ApiKeyPool.init('ai_storybook_frontend');
 
-  runApp(const MyApp());
+  final authProvider = AuthProvider();
+  await authProvider.loadFromStorage();
+
+  runApp(MyApp(authProvider: authProvider));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final AuthProvider authProvider;
+
+  const MyApp({super.key, required this.authProvider});
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +33,7 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => StoryProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
@@ -62,9 +69,9 @@ class MyApp extends StatelessWidget {
                 ),
               ),
             ),
-            home: const HomeScreen(),
+            home: const MainShell(),
             routes: {
-              '/home': (context) => const HomeScreen(),
+              '/home': (context) => const MainShell(),
             },
           );
         },

@@ -49,7 +49,7 @@ export default async function HomePage() {
             </p>
 
             <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-[var(--success)]/10 px-4 py-2 text-sm font-semibold text-[var(--success)]">
-              ✅ 100% free — no sign-up required
+              ✅ 100% free — sign up in seconds to start creating
             </div>
 
             <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row lg:justify-start">

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import type { AdminStats, Story } from "@/lib/types";
-import { adminListAllStories } from "@/lib/api";
+import { THEME_OPTIONS } from "@/lib/types";
 
 type Granularity = "day" | "week" | "month";
 
@@ -23,6 +23,7 @@ export function AdminDashboardClient() {
 
   const [stories, setStories] = useState<Story[]>([]);
   const [storiesLoading, setStoriesLoading] = useState(true);
+  const [themeFilter, setThemeFilter] = useState<string>("");
 
   const loadStats = useCallback(async () => {
     setLoading(true);
@@ -52,12 +53,28 @@ export function AdminDashboardClient() {
     loadStats();
   }, [loadStats]);
 
+  const loadStories = useCallback(async () => {
+    setStoriesLoading(true);
+    try {
+      const qs = new URLSearchParams({ limit: "100" });
+      if (themeFilter) qs.set("theme", themeFilter);
+      const res = await fetch(`/api/admin/stories?${qs.toString()}`);
+      if (res.status === 401) {
+        router.push("/admin/login");
+        return;
+      }
+      const body = await res.json();
+      setStories(body.success ? body.data : []);
+    } catch {
+      setStories([]);
+    } finally {
+      setStoriesLoading(false);
+    }
+  }, [themeFilter, router]);
+
   useEffect(() => {
-    adminListAllStories(100)
-      .then(setStories)
-      .catch(() => setStories([]))
-      .finally(() => setStoriesLoading(false));
-  }, []);
+    loadStories();
+  }, [loadStories]);
 
   async function toggleDefault(story: Story) {
     const res = await fetch(`/api/admin/stories/${story.id}/default`, {
@@ -179,8 +196,27 @@ export function AdminDashboardClient() {
       </div>
 
       <div className="mt-10">
-        <h2 className="font-display text-xl font-bold text-white">Featured stories</h2>
-        <p className="text-sm text-[var(--muted)]">Toggle which stories appear on the homepage.</p>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h2 className="font-display text-xl font-bold text-white">All stories</h2>
+            <p className="text-sm text-[var(--muted)]">Toggle which stories are public (homepage, Library, Flutter home).</p>
+          </div>
+          <div>
+            <label className="font-data text-[11px] tracking-wide text-[var(--muted)] uppercase">Filter by type</label>
+            <select
+              value={themeFilter}
+              onChange={(e) => setThemeFilter(e.target.value)}
+              className="mt-1 block h-10 w-40 border-b-2 border-white/20 bg-black/30 px-2 text-sm text-white outline-none focus:border-[var(--gold)]"
+            >
+              <option value="">All types</option>
+              {THEME_OPTIONS.map((t) => (
+                <option key={t.name} value={t.name}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
 
         <div className="mt-4 overflow-x-auto rounded-2xl border border-white/10 bg-white/5 backdrop-blur-lg">
           <table className="w-full min-w-[500px] text-left text-sm">
@@ -189,7 +225,7 @@ export function AdminDashboardClient() {
                 <th className="p-4">Title</th>
                 <th className="p-4">Theme</th>
                 <th className="p-4">Created</th>
-                <th className="p-4">Featured</th>
+                <th className="p-4">Public</th>
               </tr>
             </thead>
             <tbody>
@@ -221,7 +257,7 @@ export function AdminDashboardClient() {
                           : "border border-white/10 text-white/70"
                       }`}
                     >
-                      {story.isDefault ? "● Featured" : "Set as featured"}
+                      {story.isDefault ? "● Public" : "Make public"}
                     </button>
                   </td>
                 </tr>

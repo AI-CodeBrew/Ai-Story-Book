@@ -1,4 +1,4 @@
-import type { AdminStats, FeedbackOptions, Story } from "./types";
+import type { AdminStats, FeedbackOptions, Story, User } from "./types";
 
 // Server-side code (Server Components, Route Handlers) talks to Flask over
 // FLASK_INTERNAL_URL; the browser talks over NEXT_PUBLIC_API_BASE_URL. Both
@@ -32,9 +32,12 @@ export interface GenerateStoryInput {
 
 // Mirrors the mobile app's flow: /stories/generate returns text + placeholder
 // images, then each page's real illustration is generated separately.
-export async function generateStory(input: GenerateStoryInput): Promise<Story> {
+// Login-gated on the backend, so a bearer token is required — called only
+// from the server-side /api/stories/generate BFF route, which holds it.
+export async function generateStory(input: GenerateStoryInput, token: string): Promise<Story> {
   return apiFetch<Story>("/stories/generate", {
     method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify(input),
   });
 }
@@ -50,9 +53,13 @@ export async function generatePageImage(prompt: string): Promise<string | null> 
   return `data:image/jpeg;base64,${body.imageBase64}`;
 }
 
-export async function saveStory(story: Story, visitorId: string): Promise<Story> {
+// Login-gated on the backend; called only from the server-side
+// /api/stories/save BFF route. The backend derives the real owner from the
+// token, so visitorId here is kept only for anonymous analytics correlation.
+export async function saveStory(story: Story, token: string, visitorId?: string): Promise<Story> {
   return apiFetch<Story>("/stories/save", {
     method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({ story, visitorId, source: "website" }),
   });
 }
@@ -61,9 +68,10 @@ export async function getStory(id: string): Promise<Story> {
   return apiFetch<Story>(`/stories/${id}`);
 }
 
-export async function listStories(opts?: { isDefault?: boolean; limit?: number }): Promise<Story[]> {
+export async function listStories(opts?: { isDefault?: boolean; theme?: string; limit?: number }): Promise<Story[]> {
   const params = new URLSearchParams();
   if (opts?.isDefault !== undefined) params.set("isDefault", String(opts.isDefault));
+  if (opts?.theme) params.set("theme", opts.theme);
   if (opts?.limit) params.set("limit", String(opts.limit));
   const qs = params.toString();
   return apiFetch<Story[]>(`/stories${qs ? `?${qs}` : ""}`);
@@ -122,6 +130,33 @@ export async function adminSetDefault(token: string, storyId: string, isDefault:
   });
 }
 
-export async function adminListAllStories(limit = 50): Promise<Story[]> {
-  return listStories({ limit });
+export async function adminListAllStories(token: string, opts?: { theme?: string; limit?: number }): Promise<Story[]> {
+  const params = new URLSearchParams();
+  if (opts?.theme) params.set("theme", opts.theme);
+  params.set("limit", String(opts?.limit ?? 100));
+  return apiFetch<Story[]>(`/stories?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+// --- End-user auth (called server-side, via the /api/auth/* BFF routes) ---
+
+export async function signup(email: string, password: string, name: string): Promise<{ token: string; user: User }> {
+  return apiFetch("/auth/signup", { method: "POST", body: JSON.stringify({ email, password, name }) });
+}
+
+export async function login(email: string, password: string): Promise<{ token: string; user: User }> {
+  return apiFetch("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+}
+
+export async function googleAuth(idToken: string): Promise<{ token: string; user: User }> {
+  return apiFetch("/auth/google", { method: "POST", body: JSON.stringify({ idToken }) });
+}
+
+export async function me(token: string): Promise<User> {
+  return apiFetch<User>("/auth/me", { headers: { Authorization: `Bearer ${token}` } });
+}
+
+export async function myStories(token: string, limit = 50): Promise<Story[]> {
+  return apiFetch<Story[]>(`/stories/mine?limit=${limit}`, { headers: { Authorization: `Bearer ${token}` } });
 }

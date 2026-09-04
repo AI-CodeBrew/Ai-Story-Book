@@ -7,8 +7,7 @@ export default async function StoriesPage({ searchParams }: PageProps<"/stories"
   const { theme } = await searchParams;
   const activeTheme = typeof theme === "string" ? theme : undefined;
 
-  const allStories = await listStories({ limit: 48 }).catch(() => []);
-  const stories = activeTheme ? allStories.filter((s) => s.theme.toLowerCase() === activeTheme.toLowerCase()) : allStories;
+  const stories = await listStories({ isDefault: true, theme: activeTheme, limit: 48 }).catch(() => []);
 
   return (
     <div className="bg-void-texture min-h-screen">

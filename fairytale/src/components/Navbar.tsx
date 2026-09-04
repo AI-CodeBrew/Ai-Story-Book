@@ -1,6 +1,12 @@
 import Link from "next/link";
+import { me } from "@/lib/api";
+import { getUserToken } from "@/lib/userAuth";
+import { NavbarUserMenu } from "@/components/NavbarUserMenu";
 
-export function Navbar() {
+export async function Navbar() {
+  const token = await getUserToken();
+  const user = token ? await me(token).catch(() => null) : null;
+
   return (
     <header className="sticky top-0 z-40 border-b border-white/10 bg-[var(--void)]/80 backdrop-blur-lg">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
@@ -17,6 +23,13 @@ export function Navbar() {
           >
             Create a Story
           </Link>
+          {user ? (
+            <NavbarUserMenu user={user} />
+          ) : (
+            <Link href="/login" className="font-data tracking-wide transition hover:text-[var(--gold)]">
+              LOG IN
+            </Link>
+          )}
         </nav>
       </div>
     </header>

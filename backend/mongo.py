@@ -32,6 +32,7 @@ def ensure_indexes(db):
     db.stories.create_index([('id', ASCENDING)], unique=True)
     db.stories.create_index([('isDefault', ASCENDING), ('createdAt', DESCENDING)])
     db.stories.create_index([('visitorId', ASCENDING)])
+    db.stories.create_index([('userId', ASCENDING), ('createdAt', DESCENDING)])
 
     db.feedback.create_index([('storyId', ASCENDING), ('submittedAt', DESCENDING)])
 
@@ -39,3 +40,6 @@ def ensure_indexes(db):
     db.visits.create_index([('visitorId', ASCENDING)])
 
     db.admins.create_index([('email', ASCENDING)], unique=True)
+
+    db.users.create_index([('email', ASCENDING)], unique=True)
+    db.users.create_index([('googleId', ASCENDING)], unique=True, sparse=True)

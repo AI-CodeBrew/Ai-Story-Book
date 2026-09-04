@@ -2,9 +2,35 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { generatePageImage, generateStory, recordVisit, saveStory } from "@/lib/api";
+import { generatePageImage, recordVisit } from "@/lib/api";
 import { THEME_OPTIONS } from "@/lib/types";
+import type { Story } from "@/lib/types";
 import { useVisitorId } from "@/hooks/useVisitorId";
+
+// Generation and saving are login-gated on the backend and the user's JWT
+// lives in an httpOnly cookie, so these go through same-origin BFF routes
+// (which attach the token server-side) instead of calling Flask directly.
+async function generateStoryViaApi(input: { prompt: string; theme: string; additionalContext?: string }): Promise<Story> {
+  const res = await fetch("/api/stories/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const body = await res.json();
+  if (!res.ok || !body.success) throw new Error(body.error || "Failed to generate story");
+  return body.data as Story;
+}
+
+async function saveStoryViaApi(story: Story, visitorId?: string | null): Promise<Story> {
+  const res = await fetch("/api/stories/save", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ story, visitorId: visitorId ?? undefined }),
+  });
+  const body = await res.json();
+  if (!res.ok || !body.success) throw new Error(body.error || "Failed to save story");
+  return body.data as Story;
+}
 
 const THEME_STYLES: Record<string, string> = {
   Adventure: "adventure, action, exploration",
@@ -50,7 +76,7 @@ function GenerateForm() {
 
     try {
       setStatus("Writing your 10-page story...");
-      const story = await generateStory({ prompt, theme, additionalContext: additionalContext || undefined });
+      const story = await generateStoryViaApi({ prompt, theme, additionalContext: additionalContext || undefined });
 
       setStatus("Painting the illustrations...");
       const images = await Promise.all(
@@ -59,7 +85,7 @@ function GenerateForm() {
       story.pages = story.pages.map((page, i) => ({ ...page, imageUrl: images[i] ?? page.imageUrl }));
 
       setStatus("Saving your storybook...");
-      const saved = await saveStory({ ...story, prompt, additionalContext }, visitorId ?? "anonymous");
+      const saved = await saveStoryViaApi({ ...story, prompt, additionalContext }, visitorId);
 
       if (visitorId) recordVisit(visitorId, "/generate", "story_generated");
 

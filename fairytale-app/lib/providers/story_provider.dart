@@ -21,7 +21,7 @@ class StoryProvider extends ChangeNotifier {
   double get imageProgressPercentage => 
       _totalImages > 0 ? _imageProgress / _totalImages : 0.0;
 
-  Future<void> generateStory(StoryRequest request) async {
+  Future<void> generateStory(StoryRequest request, String authToken) async {
     _setLoading(true);
     _error = null;
 
@@ -30,7 +30,7 @@ class StoryProvider extends ChangeNotifier {
       print('📝 Request: ${request.toJson()}');
 
       // Step 1: Generate story text only (fast)
-      final story = await ApiService.generateStory(request);
+      final story = await ApiService.generateStory(request, authToken);
       print('✅ Story text generated successfully');
       print('📖 Story title: ${story.title}');
       print('📄 Pages count: ${story.pages.length}');
