@@ -1,0 +1,8 @@
+﻿.venv
+venv
+__pycache__
+*.pyc
+.env
+api_keys_pool.json
+temp_images/
+.git

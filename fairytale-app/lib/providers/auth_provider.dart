@@ -15,6 +15,8 @@ class AuthProvider extends ChangeNotifier {
   String? get token => _token;
   Map<String, dynamic>? get user => _user;
   bool get initializing => _initializing;
+  Set<String> get favoriteIds => Set<String>.from((_user?['favoriteStoryIds'] as List?) ?? const []);
+  bool isFavorite(String storyId) => favoriteIds.contains(storyId);
 
   Future<void> loadFromStorage() async {
     try {
@@ -61,7 +63,10 @@ class AuthProvider extends ChangeNotifier {
 
   Future<bool> loginWithGoogle() async {
     try {
-      final googleSignIn = GoogleSignIn();
+      final googleSignIn = GoogleSignIn(
+        serverClientId:
+            '856554896829-fdl18nar55lvt7mg0lnj9qn999h1ldd0.apps.googleusercontent.com',
+      );
       final account = await googleSignIn.signIn();
       if (account == null) return false; // user cancelled
       final auth = await account.authentication;
@@ -80,5 +85,55 @@ class AuthProvider extends ChangeNotifier {
     _user = null;
     await _storage.delete(key: _tokenKey);
     notifyListeners();
+  }
+
+  /// Permanently deletes the account and all owned stories server-side,
+  /// then clears the local session.
+  Future<bool> deleteAccount() async {
+    final token = _token;
+    if (token == null) return false;
+    try {
+      await ApiService.deleteAccount(token);
+      await logout();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> updateName(String name) async {
+    final token = _token;
+    if (token == null) return false;
+    try {
+      _user = await ApiService.updateProfile(name, token);
+      notifyListeners();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Optimistically toggles favorite state, then reverts if the request fails.
+  Future<void> toggleFavorite(String storyId) async {
+    final token = _token;
+    if (token == null) return;
+    final wasFavorite = isFavorite(storyId);
+    final updated = Set<String>.from(favoriteIds);
+    wasFavorite ? updated.remove(storyId) : updated.add(storyId);
+    _user = {...?_user, 'favoriteStoryIds': updated.toList()};
+    notifyListeners();
+    try {
+      if (wasFavorite) {
+        await ApiService.removeFavorite(storyId, token);
+      } else {
+        await ApiService.addFavorite(storyId, token);
+      }
+    } catch (e) {
+      final reverted = Set<String>.from(updated);
+      wasFavorite ? reverted.add(storyId) : reverted.remove(storyId);
+      _user = {...?_user, 'favoriteStoryIds': reverted.toList()};
+      notifyListeners();
+      if (kDebugMode) print('Toggle favorite error: $e');
+    }
   }
 }

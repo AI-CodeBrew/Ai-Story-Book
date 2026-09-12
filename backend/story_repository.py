@@ -47,7 +47,7 @@ def get_story(story_id):
     return _serialize(db.stories.find_one({'id': story_id}))
 
 
-def list_stories(is_default=None, limit=12, theme=None, user_id=None):
+def list_stories(is_default=None, limit=12, theme=None, user_id=None, search=None, skip=0, sort='newest', story_ids=None):
     db = mongo.get_db()
     query = {}
     if is_default is not None:
@@ -56,12 +56,35 @@ def list_stories(is_default=None, limit=12, theme=None, user_id=None):
         query['theme'] = {'$regex': f'^{re.escape(theme)}$', '$options': 'i'}
     if user_id:
         query['userId'] = user_id
-    cursor = db.stories.find(query).sort('createdAt', -1).limit(limit)
-    return [_serialize(doc) for doc in cursor]
+    if search:
+        query['title'] = {'$regex': re.escape(search), '$options': 'i'}
+    if story_ids is not None:
+        query['id'] = {'$in': story_ids}
+
+    direction = 1 if sort == 'oldest' else -1
+    # Fetch one extra document to cheaply determine whether more pages
+    # remain, without a second count query.
+    cursor = db.stories.find(query).sort('createdAt', direction).skip(skip).limit(limit + 1)
+    docs = list(cursor)
+    has_more = len(docs) > limit
+    return [_serialize(doc) for doc in docs[:limit]], has_more
 
 
-def list_stories_by_user(user_id, limit=50):
-    return list_stories(user_id=user_id, limit=limit)
+def list_stories_by_user(user_id, limit=50, skip=0, sort='newest'):
+    return list_stories(user_id=user_id, limit=limit, skip=skip, sort=sort)
+
+
+def delete_story(story_id, user_id):
+    """Delete a story, but only if it belongs to the requesting user."""
+    db = mongo.get_db()
+    result = db.stories.delete_one({'id': story_id, 'userId': user_id})
+    return result.deleted_count > 0
+
+
+def delete_stories_by_user(user_id):
+    """Used for account deletion: remove every story the user owns."""
+    db = mongo.get_db()
+    db.stories.delete_many({'userId': user_id})
 
 
 def set_default(story_id, is_default):

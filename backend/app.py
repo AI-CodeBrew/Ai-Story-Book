@@ -918,6 +918,9 @@ def list_stories():
     try:
         is_default_param = request.args.get('isDefault')
         theme = request.args.get('theme')
+        search = request.args.get('search') or None
+        sort = 'oldest' if request.args.get('sort') == 'oldest' else 'newest'
+        skip = max(int(request.args.get('skip', 0)), 0)
         if is_default_param is not None:
             is_default = is_default_param.lower() == 'true'
         else:
@@ -927,8 +930,10 @@ def list_stories():
             is_default = None if auth_service.try_decode_admin(request) else True
         limit = min(int(request.args.get('limit', 12)), 50)
 
-        stories = story_repository.list_stories(is_default=is_default, limit=limit, theme=theme)
-        return jsonify({'success': True, 'data': stories})
+        stories, has_more = story_repository.list_stories(
+            is_default=is_default, limit=limit, theme=theme, search=search, skip=skip, sort=sort,
+        )
+        return jsonify({'success': True, 'data': stories, 'hasMore': has_more})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -938,8 +943,38 @@ def list_stories():
 def list_my_stories():
     try:
         limit = min(int(request.args.get('limit', 50)), 100)
-        stories = story_repository.list_stories_by_user(request.user['sub'], limit=limit)
-        return jsonify({'success': True, 'data': stories})
+        skip = max(int(request.args.get('skip', 0)), 0)
+        sort = 'oldest' if request.args.get('sort') == 'oldest' else 'newest'
+        stories, has_more = story_repository.list_stories_by_user(request.user['sub'], limit=limit, skip=skip, sort=sort)
+        return jsonify({'success': True, 'data': stories, 'hasMore': has_more})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/stories/favorites', methods=['GET'])
+@auth_service.require_user
+def list_favorite_stories():
+    try:
+        limit = min(int(request.args.get('limit', 20)), 100)
+        skip = max(int(request.args.get('skip', 0)), 0)
+        user = user_service.get_user_by_id(request.user['sub'])
+        favorite_ids = (user or {}).get('favoriteStoryIds', [])
+        if not favorite_ids:
+            return jsonify({'success': True, 'data': [], 'hasMore': False})
+        stories, has_more = story_repository.list_stories(story_ids=favorite_ids, limit=limit, skip=skip)
+        return jsonify({'success': True, 'data': stories, 'hasMore': has_more})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/stories/<story_id>', methods=['DELETE'])
+@auth_service.require_user
+def delete_story(story_id):
+    try:
+        deleted = story_repository.delete_story(story_id, request.user['sub'])
+        if not deleted:
+            return jsonify({'success': False, 'error': 'Story not found'}), 404
+        return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -1043,6 +1078,56 @@ def auth_me():
     if not user:
         return jsonify({'success': False, 'error': 'User not found'}), 404
     return jsonify({'success': True, 'data': user_service._serialize(user)})
+
+
+@app.route('/api/auth/me', methods=['PATCH'])
+@auth_service.require_user
+def update_profile():
+    try:
+        data = request.get_json() or {}
+        name = (data.get('name') or '').strip()
+        if not name:
+            return jsonify({'success': False, 'error': 'Name is required'}), 400
+        user = user_service.update_profile(request.user['sub'], name)
+        if not user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        return jsonify({'success': True, 'data': user_service._serialize(user)})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/auth/me', methods=['DELETE'])
+@auth_service.require_user
+def delete_account():
+    try:
+        user_id = request.user['sub']
+        story_repository.delete_stories_by_user(user_id)
+        deleted = user_service.delete_user(user_id)
+        if not deleted:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/favorites/<story_id>', methods=['POST'])
+@auth_service.require_user
+def add_favorite(story_id):
+    try:
+        user_service.add_favorite(request.user['sub'], story_id)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/favorites/<story_id>', methods=['DELETE'])
+@auth_service.require_user
+def remove_favorite(story_id):
+    try:
+        user_service.remove_favorite(request.user['sub'], story_id)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/admin/login', methods=['POST'])

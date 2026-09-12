@@ -17,6 +17,7 @@ def _serialize(user):
         'name': user.get('name', ''),
         'authProvider': user.get('authProvider', 'password'),
         'createdAt': created_at.isoformat() if isinstance(created_at, datetime) else created_at,
+        'favoriteStoryIds': user.get('favoriteStoryIds', []),
     }
 
 
@@ -31,6 +32,44 @@ def get_user_by_id(user_id):
         return db.users.find_one({'_id': ObjectId(user_id)})
     except InvalidId:
         return None
+
+
+def update_profile(user_id, name):
+    db = mongo.get_db()
+    try:
+        oid = ObjectId(user_id)
+    except InvalidId:
+        return None
+    db.users.update_one({'_id': oid}, {'$set': {'name': name}})
+    return get_user_by_id(user_id)
+
+
+def add_favorite(user_id, story_id):
+    db = mongo.get_db()
+    try:
+        oid = ObjectId(user_id)
+    except InvalidId:
+        return
+    db.users.update_one({'_id': oid}, {'$addToSet': {'favoriteStoryIds': story_id}})
+
+
+def remove_favorite(user_id, story_id):
+    db = mongo.get_db()
+    try:
+        oid = ObjectId(user_id)
+    except InvalidId:
+        return
+    db.users.update_one({'_id': oid}, {'$pull': {'favoriteStoryIds': story_id}})
+
+
+def delete_user(user_id):
+    db = mongo.get_db()
+    try:
+        oid = ObjectId(user_id)
+    except InvalidId:
+        return False
+    result = db.users.delete_one({'_id': oid})
+    return result.deleted_count > 0
 
 
 def signup(email, password, name):

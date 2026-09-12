@@ -4,13 +4,20 @@ import 'package:http/http.dart' as http;
 import 'package:api_key_pool/api_key_pool.dart';
 import '../models/story.dart';
 
+/// One page of a paginated story listing.
+class StoriesPage {
+  final List<Story> stories;
+  final bool hasMore;
+  const StoriesPage(this.stories, this.hasMore);
+}
+
 class ApiService {
   // For development - local Flask server
   // static const String baseUrl = 'http://127.0.0.1:8080/api';
 
-  // For production - Vercel deployment
-  static const String baseUrl = 'https://backend-gqxa3h948-uzairhassan375s-projects.vercel.app/api';
-  
+  // For production - Fly.io deployment
+  static const String baseUrl = 'https://fairytale-backend.fly.dev/api';
+
   // Helper method to convert relative image URLs to absolute URLs
   static String getImageUrl(String imageUrl) {
     // If it's already a data URL (base64), return as-is
@@ -22,7 +29,7 @@ class ApiService {
       return imageUrl;
     }
     // Otherwise, treat as relative URL
-    return 'https://backend-gqxa3h948-uzairhassan375s-projects.vercel.app$imageUrl';
+    return 'https://fairytale-backend.fly.dev$imageUrl';
   }
   
   // Manual function to test ApiKeyPool
@@ -212,6 +219,111 @@ class ApiService {
       return (data['data'] as List).map((json) => Story.fromJson(json)).toList();
     }
     throw Exception(data['error'] ?? 'Failed to load your stories');
+  }
+
+  // Paginated + searchable public listing (Library screen)
+  static Future<StoriesPage> listStoriesPaged({
+    bool? isDefault,
+    String? theme,
+    String? search,
+    String sort = 'newest',
+    int limit = 12,
+    int skip = 0,
+  }) async {
+    final params = <String, String>{'limit': '$limit', 'skip': '$skip', 'sort': sort};
+    if (isDefault != null) params['isDefault'] = '$isDefault';
+    if (theme != null) params['theme'] = theme;
+    if (search != null && search.trim().isNotEmpty) params['search'] = search.trim();
+    final uri = Uri.parse('$baseUrl/stories').replace(queryParameters: params);
+    final response = await http.get(uri, headers: {'Content-Type': 'application/json'});
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200 && data['success'] == true) {
+      final stories = (data['data'] as List).map((json) => Story.fromJson(json)).toList();
+      return StoriesPage(stories, data['hasMore'] == true);
+    }
+    throw Exception(data['error'] ?? 'Failed to load stories');
+  }
+
+  // Paginated version of myStories
+  static Future<StoriesPage> myStoriesPaged(String token, {int limit = 50, int skip = 0, String sort = 'newest'}) async {
+    final params = <String, String>{'limit': '$limit', 'skip': '$skip', 'sort': sort};
+    final uri = Uri.parse('$baseUrl/stories/mine').replace(queryParameters: params);
+    final response = await http.get(uri, headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'});
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200 && data['success'] == true) {
+      final stories = (data['data'] as List).map((json) => Story.fromJson(json)).toList();
+      return StoriesPage(stories, data['hasMore'] == true);
+    }
+    throw Exception(data['error'] ?? 'Failed to load your stories');
+  }
+
+  static Future<StoriesPage> myFavoriteStories(String token, {int limit = 20, int skip = 0}) async {
+    final params = <String, String>{'limit': '$limit', 'skip': '$skip'};
+    final uri = Uri.parse('$baseUrl/stories/favorites').replace(queryParameters: params);
+    final response = await http.get(uri, headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'});
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200 && data['success'] == true) {
+      final stories = (data['data'] as List).map((json) => Story.fromJson(json)).toList();
+      return StoriesPage(stories, data['hasMore'] == true);
+    }
+    throw Exception(data['error'] ?? 'Failed to load favorites');
+  }
+
+  static Future<void> addFavorite(String storyId, String token) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/favorites/$storyId'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+    );
+    final data = jsonDecode(response.body);
+    if (!(response.statusCode == 200 && data['success'] == true)) {
+      throw Exception(data['error'] ?? 'Failed to add favorite');
+    }
+  }
+
+  static Future<void> removeFavorite(String storyId, String token) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/favorites/$storyId'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+    );
+    final data = jsonDecode(response.body);
+    if (!(response.statusCode == 200 && data['success'] == true)) {
+      throw Exception(data['error'] ?? 'Failed to remove favorite');
+    }
+  }
+
+  static Future<void> deleteStory(String storyId, String token) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/stories/$storyId'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+    );
+    final data = jsonDecode(response.body);
+    if (!(response.statusCode == 200 && data['success'] == true)) {
+      throw Exception(data['error'] ?? 'Failed to delete story');
+    }
+  }
+
+  static Future<void> deleteAccount(String token) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/auth/me'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+    );
+    final data = jsonDecode(response.body);
+    if (!(response.statusCode == 200 && data['success'] == true)) {
+      throw Exception(data['error'] ?? 'Failed to delete account');
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateProfile(String name, String token) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/auth/me'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      body: jsonEncode({'name': name}),
+    );
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200 && data['success'] == true) {
+      return Map<String, dynamic>.from(data['data']);
+    }
+    throw Exception(data['error'] ?? 'Failed to update profile');
   }
 
   // --- Auth ---

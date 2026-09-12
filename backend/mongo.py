@@ -42,4 +42,11 @@ def ensure_indexes(db):
     db.admins.create_index([('email', ASCENDING)], unique=True)
 
     db.users.create_index([('email', ASCENDING)], unique=True)
-    db.users.create_index([('googleId', ASCENDING)], unique=True, sparse=True)
+    # A plain sparse index only excludes documents *missing* googleId, but
+    # password-only signups explicitly store `googleId: None` — sparse does
+    # not skip that. A partial index restricted to actual string values does.
+    db.users.create_index(
+        [('googleId', ASCENDING)],
+        unique=True,
+        partialFilterExpression={'googleId': {'$type': 'string'}},
+    )

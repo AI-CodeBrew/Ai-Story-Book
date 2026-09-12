@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:api_key_pool/api_key_pool.dart';
@@ -5,21 +7,28 @@ import 'screens/main_shell.dart';
 import 'providers/story_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/auth_provider.dart';
+import 'services/crash_log_service.dart';
 import 'utils/app_colors.dart';
 import 'utils/app_sizes.dart';
 import 'utils/app_strings.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+void main() {
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    CrashLogService.init();
 
-  AppStrings.gemini_model = 'gemini-2.0-flash';
+    AppStrings.gemini_model = 'gemini-2.0-flash';
 
-  await ApiKeyPool.init('ai_storybook_frontend');
+    await ApiKeyPool.init('ai_storybook_frontend');
 
-  final authProvider = AuthProvider();
-  await authProvider.loadFromStorage();
+    final authProvider = AuthProvider();
+    await authProvider.loadFromStorage();
 
-  runApp(MyApp(authProvider: authProvider));
+    runApp(MyApp(authProvider: authProvider));
+  }, (error, stack) {
+    CrashLogService.recordError(error.toString(), stack);
+    if (kDebugMode) debugPrint('Uncaught zone error: $error');
+  });
 }
 
 class MyApp extends StatelessWidget {
@@ -38,7 +47,7 @@ class MyApp extends StatelessWidget {
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
           return MaterialApp(
-            title: 'AI Storybook',
+            title: 'FairyTale AI',
             debugShowCheckedModeBanner: false,
             builder: (context, child) {
               AppSizes.init(context);
