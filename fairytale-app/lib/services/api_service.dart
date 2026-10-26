@@ -12,11 +12,13 @@ class StoriesPage {
 }
 
 class ApiService {
-  // For development - local Flask server
-  // static const String baseUrl = 'http://127.0.0.1:8080/api';
-
-  // For production - Fly.io deployment
-  static const String baseUrl = 'https://fairytale-backend.fly.dev/api';
+  // Backend host. Defaults to the Fly.io deployment; for a local Flask server run with
+  // --dart-define=API_HOST=http://127.0.0.1:8080
+  static const String apiHost = String.fromEnvironment(
+    'API_HOST',
+    defaultValue: 'https://fairytale-backend.fly.dev',
+  );
+  static const String baseUrl = '$apiHost/api';
 
   // Helper method to convert relative image URLs to absolute URLs
   static String getImageUrl(String imageUrl) {
@@ -29,7 +31,7 @@ class ApiService {
       return imageUrl;
     }
     // Otherwise, treat as relative URL
-    return 'https://fairytale-backend.fly.dev$imageUrl';
+    return '$apiHost$imageUrl';
   }
   
   // Manual function to test ApiKeyPool

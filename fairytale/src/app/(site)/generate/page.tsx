@@ -6,6 +6,7 @@ import { generatePageImage, recordVisit } from "@/lib/api";
 import { THEME_OPTIONS } from "@/lib/types";
 import type { Story } from "@/lib/types";
 import { useVisitorId } from "@/hooks/useVisitorId";
+import { MicButton } from "@/components/MicButton";
 
 // Generation and saving are login-gated on the backend and the user's JWT
 // lives in an httpOnly cookie, so these go through same-origin BFF routes
@@ -118,6 +119,9 @@ function GenerateForm() {
               className="mt-2 w-full resize-none rounded-xl border border-white/10 bg-black/30 p-3 text-sm text-white outline-none placeholder:text-[var(--muted)] focus:border-[var(--gold)] focus:shadow-[0_0_20px_-8px_rgba(255,200,87,0.5)]"
               disabled={loading}
             />
+            <div className="mt-2">
+              <MicButton value={prompt} onChange={setPrompt} disabled={loading} />
+            </div>
             <div className="mt-3 flex flex-wrap gap-2">
               <span className="font-data text-[11px] tracking-wide text-[var(--muted)] uppercase">Need inspiration?</span>
               {SUGGESTIONS.map((s) => (

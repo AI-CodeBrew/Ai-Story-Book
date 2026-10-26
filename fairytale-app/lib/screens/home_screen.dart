@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../models/story.dart';
 import '../providers/auth_provider.dart';
 import '../providers/story_provider.dart';
@@ -46,6 +47,12 @@ class _HomeScreenState extends State<HomeScreen> {
   String _selectedTheme = 'Adventure';
   bool _isSaving = false;
 
+  // Voice input: lets a child speak the story idea instead of typing it.
+  final stt.SpeechToText _speech = stt.SpeechToText();
+  bool _speechAvailable = false;
+  bool _isListening = false;
+  String _textBeforeListening = '';
+
   List<Story> _stories = [];
   bool _loadingStories = true;
   String? _error;
@@ -74,11 +81,64 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _speech.cancel();
     _promptController.dispose();
     _searchController.dispose();
     _marqueeTimer?.cancel();
     _marqueeController.dispose();
     super.dispose();
+  }
+
+  Future<void> _toggleListening() async {
+    if (_isListening) {
+      await _speech.stop();
+      if (mounted) setState(() => _isListening = false);
+      return;
+    }
+
+    if (!_speechAvailable) {
+      _speechAvailable = await _speech.initialize(
+        onStatus: (status) {
+          if ((status == 'done' || status == 'notListening') && mounted) {
+            setState(() => _isListening = false);
+          }
+        },
+        onError: (_) {
+          if (mounted) setState(() => _isListening = false);
+        },
+      );
+    }
+    if (!mounted) return;
+    if (!_speechAvailable) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Voice input isn't available. Check microphone permission.",style: GoogleFonts.nunito()),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    _textBeforeListening = _promptController.text.trim();
+    setState(() => _isListening = true);
+    await _speech.listen(
+      listenOptions: stt.SpeechListenOptions(
+        partialResults: true,
+        cancelOnError: true,
+        // Kids pause mid-sentence while thinking, so allow a generous gap.
+        pauseFor: const Duration(seconds: 4),
+        listenFor: const Duration(seconds: 60),
+      ),
+      onResult: (result) {
+        final spoken = result.recognizedWords;
+        final text = _textBeforeListening.isEmpty ? spoken : '$_textBeforeListening $spoken';
+        _promptController.value = TextEditingValue(
+          text: text,
+          selection: TextSelection.collapsed(offset: text.length),
+        );
+        if (result.finalResult && mounted) setState(() => _isListening = false);
+      },
+    );
   }
 
   Future<void> _loadLastStory() async {
@@ -353,10 +413,24 @@ class _HomeScreenState extends State<HomeScreen> {
               maxLines: 4,
               style: GoogleFonts.nunito(color: const Color(0xFF2c3e50), fontSize: 14),
               decoration: InputDecoration(
-                hintText: 'A brave knight rescues a dragon from a princess...',
+                hintText: _isListening
+                    ? 'Listening... tell me your story idea!'
+                    : 'A brave knight rescues a dragon from a princess...',
                 hintStyle: GoogleFonts.nunito(color: const Color(0xFF95a5a6), fontSize: 14),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.all(18),
+                suffixIcon: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: IconButton(
+                    tooltip: _isListening ? 'Stop listening' : 'Speak your story',
+                    onPressed: _toggleListening,
+                    style: IconButton.styleFrom(
+                      backgroundColor: _isListening ? AppColors.error : const Color(0xFF667eea),
+                      foregroundColor: Colors.white,
+                    ),
+                    icon: Icon(_isListening ? Icons.stop : Icons.mic),
+                  ),
+                ),
               ),
             ),
           ),

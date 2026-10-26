@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { THEME_OPTIONS } from "@/lib/types";
+import { MicButton } from "@/components/MicButton";
 
 const SUGGESTIONS = [
   "A curious fox who discovers a hidden garden",
@@ -34,6 +35,7 @@ export function HeroGenerator() {
         placeholder="Write a story about a curious fox who finds a hidden garden..."
         className="w-full resize-none bg-transparent text-base text-white outline-none placeholder:text-[var(--muted)]"
       />
+      <MicButton value={prompt} onChange={setPrompt} />
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-3">
         <div className="flex flex-wrap gap-1.5">
           {THEME_OPTIONS.map((t) => (
